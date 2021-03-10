@@ -1,6 +1,8 @@
 import tkinter as tk
 import itertools
 from enum import Enum
+import random
+import simpleTriangulation
 
 """
 Dungeon maker for D&D 5e
@@ -15,8 +17,8 @@ Next Steps:
 """
 
 
-MAPWIDTH = 500
-MAPHEIGHT = 500
+MAPWIDTH = 500 
+MAPHEIGHT = 500 
 GRIDSTEP = 20 
 
 class RoomType(Enum):
@@ -55,6 +57,9 @@ class Room():
         self.y = y
         self.width = width
         self.height = height
+
+        # Used in Delaunay Triangulation
+        self.midpoint = (self.x + self.width/2, self.y + self.height/2)
         
         # Used mainly for giving params to canvas
         # TODO: Remove if not needed and just do math in getParamsForCanvas()
@@ -64,6 +69,15 @@ class Room():
     # Return bounding box coordinates for canvas 
     def getParamsForCanvas(self):
         return self.x, self.y, self.endX, self.endY
+
+    ## AABB collision detection with optional padding
+    def checkCollision(self, roomToCheck, padding = 0):
+        if (self.x - padding * GRIDSTEP < roomToCheck.x + roomToCheck.width and 
+            self.x + self.width + padding * GRIDSTEP > roomToCheck.x and 
+            self.y - padding * GRIDSTEP < roomToCheck.y + roomToCheck.height 
+            and self.y + self.height + padding * GRIDSTEP > roomToCheck.y): 
+                return True
+        return False
 
 def addGrid(canvas):
     # Horizontal lines
@@ -80,18 +94,52 @@ def main():
 
     # Create rooms
     rooms = []
-    room1 = Room(20, 20, 300, 120)
-    room2 = Room(380, 440, 40, 80)
-    room3 = Room(60, 280, 40, 20)
+    
+    # Room creation variables
+    # TODO: make these user input
+    targetRoomCount = 10
+    roomMinSize = 3
+    roomMaxSize = 7
 
-    rooms.append(room1)
-    rooms.append(room2)
-    rooms.append(room3)
+    # Make a set of randomly sized rooms we will try to place
+    roomsToPlace = []
+    for x in range(targetRoomCount):
+        width = random.randint(roomMinSize, roomMaxSize) * GRIDSTEP
+        height = random.randint(roomMinSize, roomMaxSize) * GRIDSTEP
+        roomsToPlace.append((width, height))
+    
+
+    maxTries = 50
+    for r in roomsToPlace:
+        placed = False
+        tries = 0
+        while not placed and tries < maxTries:
+            # Try to place room at random spot
+            valid = True
+            xPos = random.randint(0, MAPWIDTH/GRIDSTEP) * GRIDSTEP
+            yPos = random.randint(0, MAPHEIGHT/GRIDSTEP) * GRIDSTEP
+
+            # See if room is in bounds
+            if xPos + r[0] <= MAPWIDTH and yPos + r[1] <= MAPHEIGHT:
+                r1 = Room(xPos, yPos, r[0], r[1])
+                # See if room collides
+                for room in rooms:
+                    if r1.checkCollision(room, 1):
+                        valid = False
+                        break
+            else:
+                valid = False
+            
+            if valid:
+                rooms.append(r1)
+                placed = True
+            else:
+                tries += 1
     
     # Initialize window for display
-    m = tk.Tk()
-    m.resizable(False, False)
-    canvas = tk.Canvas(m, width=MAPWIDTH, height=MAPHEIGHT)
+    root = tk.Tk()
+    root.resizable(False, False)
+    canvas = tk.Canvas(root, width=MAPWIDTH, height=MAPHEIGHT)
 
     addGrid(canvas)
 
@@ -101,7 +149,7 @@ def main():
         canvas.pack()
 
     # Display rooms
-    m.mainloop()
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
